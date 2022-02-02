@@ -1,8 +1,9 @@
 #pragma semicolon 1
+
 #define DEBUG
 #pragma tabsize 0
 #define PLUGIN_AUTHOR "SniffRx"
-#define PLUGIN_VERSION "1.9.3"
+#define PLUGIN_VERSION "2.0"
 
 #include <sourcemod>
 #include <sdktools>
@@ -30,15 +31,23 @@ Handle g_iAgentPatchSLOT3;
 Handle g_iAgentPatchSLOT4;
 Handle g_iAgentPatchSLOT5;
 int LocalPatch[MAXPLAYERS + 1] = -1;
+int g_iClientD[MAXPLAYERS+1];
 
-#define VIP_Agents				"Agents"
+char FastDl_URL[256];
+char FastDl_PatchURL[256];
+
+//#define VIP_Agents				"Agents"
 #define VIP_Agents_M			"VIP_Agents_M"
+static const char VIP_Agents[] = "Agents";
 
 public void OnPluginStart()
 {
+	ConVar cvar;
+	cvar = FindConVar("sv_downloadurl");
+	cvar.AddChangeHook(OnVarChanged);
+	OnVarChanged(cvar, NULL_STRING, NULL_STRING);
 
-	if(VIP_IsVIPLoaded())
-	VIP_OnVIPLoaded();
+	if(VIP_IsVIPLoaded()) { VIP_OnVIPLoaded();}
 
 	g_Game = GetEngineVersion();
 	if(g_Game != Engine_CSGO && g_Game != Engine_CSS)
@@ -47,7 +56,6 @@ public void OnPluginStart()
 	}
 
 	HookEvent("player_spawn", OnPlayerSpawn);
-
 	g_sDataSkin = RegClientCookie("ss_skin_t", "", CookieAccess_Private);
 	g_sDataSKIN_CT = RegClientCookie("ss_skin_ct", "", CookieAccess_Private);
 	g_iAgentPatchSLOT1 = RegClientCookie("ss_patch_slot1", "", CookieAccess_Private);
@@ -56,8 +64,38 @@ public void OnPluginStart()
 	g_iAgentPatchSLOT4 = RegClientCookie("ss_patch_slot4", "", CookieAccess_Private);
 	g_iAgentPatchSLOT5 = RegClientCookie("ss_patch_slot5", "", CookieAccess_Private);
 	
+	//g_hCookie = RegClientCookie(VIP_Agents, VIP_Agents, CookieAccess_Protected);
+
+	RegConsoleCmd("sm_agents", Command_Agents);
+	RegConsoleCmd("agents", Command_Agents);
+
+	LoadTranslations("vip_core.phrases");
+	LoadTranslations("vip_modules.phrases");
 	LoadTranslations("agents_selector.phrases");
 	AutoExecConfig(true, "AgentsSelector");
+}
+
+public void OnVarChanged(ConVar cvar, const char[] oldValue, const char[] newValue) 
+{
+	GetConVarString(cvar, FastDl_URL, sizeof(FastDl_URL));
+	GetConVarString(cvar, FastDl_PatchURL, sizeof(FastDl_PatchURL));
+
+	if(FastDl_PatchURL[0])
+	{
+		if(FastDl_PatchURL[strlen(FastDl_PatchURL)-1] != '/')
+			Format(FastDl_PatchURL, sizeof(FastDl_PatchURL), "%s/", FastDl_PatchURL);
+
+		Format(FastDl_PatchURL, sizeof(FastDl_PatchURL) , "%smaterials/panorama/images/icons/patches/", FastDl_PatchURL);
+	}
+
+	if(FastDl_URL[0])
+	{
+		if(FastDl_URL[strlen(FastDl_URL)-1] != '/')
+			Format(FastDl_URL, sizeof(FastDl_URL), "%s/", FastDl_URL);
+
+		Format(FastDl_URL, sizeof(FastDl_URL), "%smaterials/panorama/images/icons/agents/", FastDl_URL);
+	}
+
 }
 
 public Action OnPlayerSpawn(Event eEvent, const char[] sName, bool bDontBroadcast)
@@ -80,7 +118,7 @@ public Action OnPlayerSpawn(Event eEvent, const char[] sName, bool bDontBroadcas
 
 public void VIP_OnVIPLoaded()
 {
-	VIP_RegisterFeature(VIP_Agents_M, BOOL, SELECTABLE, OnSelectItem);//, OnDisplayItem, OnDrawItem);
+	VIP_RegisterFeature(VIP_Agents_M, BOOL, SELECTABLE, OnItemSelect);//OnSelectItem);//, OnDisplayItem, OnDrawItem);
 	VIP_RegisterFeature(VIP_Agents, BOOL);
 }
 
@@ -157,9 +195,7 @@ SetPatchInSlot(client, int slot = -1, int value)
 		}
 	}
 }
-public Action SpecialSkin_Patches(iClient,args)
-{
-}
+public Action SpecialSkin_Patches(iClient,args){}
 
 public IsValidClient(client)
 {
@@ -225,7 +261,6 @@ public Action MdlCh_PlayerSpawn(int client, bool custom, char[] model, int model
 	return Plugin_Changed;
 }
 
-
 public bool:OnSelectItem(client, const String:sFeatureName[])
 {
 	new args;
@@ -233,11 +268,31 @@ public bool:OnSelectItem(client, const String:sFeatureName[])
     return false; // always false !!!
 }
 
+public Action Command_Agents(int client, int args)
+{
+	if(!client)
+	{
+		return;
+	}
+	if(VIP_IsClientVIP(client) && VIP_IsClientFeatureUse(client, VIP_Agents))
+	{
+		SpecialSkin3(client, args);
+	}
+	else
+	{
+		VIP_PrintToChatClient(client, "%t", "COMMAND_NO_ACCESS");
+	}
+}
+
 public Action SpecialSkin3(client,args)
 {
 	new Handle:menu = CreateMenu(AgencySELECTOR, MenuAction_Select  | MenuAction_End);
 	char Wrapper[255];
 	SetMenuTitle(menu, "%t", "MenuTitle_AgentType");
+
+	FormatEx(Wrapper, sizeof(Wrapper), "%T%s\n ", "Disable", client, g_iClientD[client] == 0 ? " [X]":"");
+	AddMenuItem(menu, NULL_STRING, Wrapper, g_iClientD[client] == 0 ? ITEMDRAW_DISABLED:ITEMDRAW_DEFAULT);
+
 	Format(Wrapper, sizeof(Wrapper), "%t", "MenuTitle_AgentReset");
 	AddMenuItem(menu, "Reset", Wrapper);
 	Format(Wrapper, sizeof(Wrapper), "%t", "MenuTitle_PickPatch_TITLE");
@@ -541,6 +596,8 @@ public MAINER_PATCH_SLOT(Handle:menu, MenuAction:action, param1, param2)
 			//param1 is client, param2 is item
 
 			new String:item[64];
+			int PatchName;
+			char FastDl_URL_PatchName[255];
 			GetMenuItem(menu, param2, item, sizeof(item));
 			int Slot = StringToInt(item);
 			if(StrEqual(item, "ALL"))
@@ -555,6 +612,12 @@ public MAINER_PATCH_SLOT(Handle:menu, MenuAction:action, param1, param2)
 			}
 			PrintToChat(param1, "%t", "MenuTitle_PatchInstalled");
 			SetPatchInSlot(param1, Slot, LocalPatch[param1]);
+			PatchName = LocalPatch[param1];
+			//PrintHintText(param1, "<font size=25><img src='%s%d.png' /></font>", FastDl_PatchURL, PatchName);
+			Format(FastDl_URL_PatchName, sizeof(FastDl_URL_PatchName),"%s%d.png", FastDl_PatchURL, PatchName);
+			SendHintToPlayer(param1, FastDl_URL_PatchName);
+			
+
 		}
  		case MenuAction_Cancel:
  		{
@@ -751,6 +814,8 @@ public XCGSelector(Handle:menu, MenuAction:action, param1, param2)
 
 			int SPICK = StringToInt(item);
 			char ModelName[255];
+			char AgentName[255];
+			char FastDl_URL_AgentName[255];
 			if(SPICK > 0)
 			{
 				int team = 0;
@@ -1072,16 +1137,20 @@ public XCGSelector(Handle:menu, MenuAction:action, param1, param2)
 						ModelName = "models/player/custom_player/legacy/tm_jungle_raider_variante.mdl";
 					}					
 				}
-				//PrintToChatAll("%s", ModelName);
-				
+				AgentName = ModelName;
+				ReplaceString(AgentName, sizeof(AgentName), "models/player/custom_player/legacy/", "");
+				ReplaceString(AgentName, sizeof(AgentName), ".mdl", "");
+				Format(FastDl_URL_AgentName, sizeof(FastDl_URL_AgentName),"%s%s.png", FastDl_URL, AgentName);
 				if(team == 1)
 				{
 					SetClientCookie(param1, g_sDataSkin, ModelName);
 					PrintToChat(param1, "%t", "Agent_PickedCT");
+					SendHintToPlayer(param1, FastDl_URL_AgentName);
 				}else if(team == 2)
 				{
 					PrintToChat(param1, "%t", "Agent_PickedT");
 					SetClientCookie(param1, g_sDataSKIN_CT, ModelName);
+					SendHintToPlayer(param1, FastDl_URL_AgentName);
 				}
 
 				// CloseHandle(menu);
@@ -1101,6 +1170,46 @@ public XCGSelector(Handle:menu, MenuAction:action, param1, param2)
 
 	}
 }
+
+void SendHintToPlayer(int client, const char[] url)
+{
+    char url_set[150];
+    Format(url_set, sizeof(url_set), "<font><img src='%s'/></font>", url);
+    PrintHintText(client, url_set);
+    
+    DataPack dpack;
+    CreateDataTimer(0.3, PrintHintFix, dpack);
+    dpack.WriteCell(client);
+    dpack.WriteString(url);
+}
+
+public Action PrintHintFix(Handle timer, DataPack pack)
+{
+    char sText[100];
+    ResetPack(pack);
+    int client = pack.ReadCell();
+    pack.ReadString(sText, sizeof(sText));
+    
+    if(IsClientInGame(client))
+    {
+        char url_set[150];
+        Format(url_set, sizeof(url_set), "<font><img src='%s'/></font>", sText);
+        PrintHintText(client, url_set);
+    }
+}
+
+public bool OnItemSelect(int client, const char[] sFeatureName)
+{
+	new args;
+	SpecialSkin3(client,args);
+	return false;
+}
+
+public void OnClientPutInServer(int iClient)
+{
+	g_iClientD[iClient] = 0;
+}
+
 public void OnPluginEnd() 
 {
 	VIP_UnregisterFeature(VIP_Agents);

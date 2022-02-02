@@ -51,6 +51,11 @@
 	"en"	"All of the agent patches was removed."
 	"ru"	"Все нашивки с агентов убраны."	
 	}
+	"Disable"
+	{
+    	"en" "Disable"
+    	"ru" "Выключить"
+	}
 	"ITEM_PAYBACK"
 	{
 	"en"	"Operation Payback"
@@ -397,6 +402,11 @@
 	"en"	"Master Agents (T)"
 	"ru"	"Мастерские агенты (T)"
 	}
+	"MenuTitle_New"
+	{
+	"en"	"NEW AGENTS"
+	"ru"	"НОВЫЕ АГЕНТЫ"
+	}
 	"MenuTitle_PickIt"
 	{
 	"en"	"Choice agent skin you want:"
@@ -599,8 +609,8 @@
 	}
 	"AgentSID_15"
 	{
-	"en"	"Markus Delrow | FBI"
-	"ru"	"Маркус Делроу | ФБР"
+	"en"	"Maikal Saifers | FBI"
+	"ru"	"Майкл Сайферс | ФБР"
 	}	
 	"AgentSID_7"
 	{
